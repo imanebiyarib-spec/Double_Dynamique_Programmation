@@ -136,38 +136,39 @@ def final_alignment(path, seq, res_stru, ss_stru):
 def kabsch_rmsd(coords_a, coords_b):
     """
     Compute the RMSD between two sets of 3D coordinates
-    after optimal rigid-body superposition (Kabsch algorithm).
+    after optimal superposition (Kabsch algorithm).
 
     Inputs:
         coords_a : First set of K coordinates (Angstrom).
-        coords_b : Second set of K coordinates (Angstrom),
-            in the same order as coords_a
+        coords_b : Second set of K coordinates (Angstrom).
 
     Principle:
         Both coordinate sets are centred on their own centroid.
         The optimal rotation matrix minimising the sum of squared
         distances between the two sets is found via singular value
         decomposition (SVD), with a reflection correction to
-        ensure a proper rotation (determinant +1). This rotation is
-        applied to the first set before computing the RMSD.
+        ensure a proper rotation. This rotation is applied to the
+        first set before computing the RMSD.
 
     Outputs:
         RMSD in Angstrom after optimal superposition (float).
     """
-
+    # gravity center
     coords_a = np.asarray(coords_a, dtype=float)
     coords_b = np.asarray(coords_b, dtype=float)
     ca = coords_a - coords_a.mean(axis=0)
     cb = coords_b - coords_b.mean(axis=0)
 
-    H = ca.T @ cb
-    V, S, Wt = np.linalg.svd(H)
-    d = np.sign(np.linalg.det(Wt.T @ V.T))
+    H = ca.T @ cb #covariance matrix
+    V, S, Wt = np.linalg.svd(H) # singular Value decomposition
+    # Reflection correction
+    d = np.sign(np.linalg.det(Wt.T @ V.T)) 
     D = np.diag([1.0, 1.0, d])
-    R = Wt.T @ D @ V.T
 
-    ca_rot = (R @ ca.T).T
-    return float(np.sqrt(np.mean(np.sum((ca_rot - cb) ** 2, axis=1))))
+    R = Wt.T @ D @ V.T # Rotation matrix
+
+    ca_rot = (R @ ca.T).T # we move the predicted structure
+    return float(np.sqrt(np.mean(np.sum((ca_rot - cb) ** 2, axis=1)))) # compute the distance 
 
 
 # Compute RMSD using the true target PDB structure (Ground Truth)
@@ -186,8 +187,8 @@ def compute_rmsd(path, sorted_keys, CA_dict, target_pdb, target_chain="A"):
     Principle:
         Extracts CA coordinates from the known structure of the sequence.
         For every aligned (non-gap) pair (p, q) in path, the
-        structure's CA coordinate at position p is paired with the
-        target's CA coordinate at position q. 
+        structure CA coordinate at position p is paired with the
+        sequence CA coordinate at position q. 
         The two coordinate lists are then compared with kabsch_rmsd().
 
     Outputs:
@@ -201,7 +202,7 @@ def compute_rmsd(path, sorted_keys, CA_dict, target_pdb, target_chain="A"):
     for p, q in path:
         if p is None or q is None:
             continue
-        if q >= len(sorted_target_keys):
+        if q >= len(sorted_target_keys): #Kabsch need 2 structures of same size
             continue
         res_s = CA_dict[sorted_keys[p]]
         res_t = CA_target[sorted_target_keys[q]]
